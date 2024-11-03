@@ -92,7 +92,7 @@ export default function ChatPage() {
       try {
 
         const application_information = await getApplicationInformation();
-        console.log('application_information', application_information);
+        // console.log('application_information', application_information);
 
         if (application_information["status"] != undefined) {
           setMaintenance(true);
@@ -126,11 +126,11 @@ export default function ChatPage() {
     if ((message || directMessage) && waiting == false) {
 
       const chat_message = {
-        'inputs': {},
+        'inputs': {"user_query":directMessage || message},
         'user': user,
-        'response_mode': 'streaming',
-        'query': directMessage || message,
-        'conversation_id': conversationId
+        'response_mode': 'blocking',
+        // 'query': ,
+        // 'conversation_id': conversationId
       };
 
 
@@ -159,65 +159,40 @@ export default function ChatPage() {
         });
       }, 100);
 
-
-
       setWaiting(true);
 
-      const response = await fetch('/api/dify/chat-messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(chat_message)
-      });
+      try {
+        const response = await fetch('/api/dify/chat-messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(chat_message)
+        });
 
-      const reader = response.body?.getReader();
-      if (!reader) return;
+        console.log("response", response);
 
-      let decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value) continue;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (let line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              let event_data = line.slice(6).trim();
-              event_data = JSON.parse(event_data);
-              // console.log('[SSE]', 'event_data', event_data);
-
-              switch (event_data["event"]) {
-                case 'message':
-                  updateLastChatItemMessage(event_data["answer"]);
-                  break;
-                case 'workflow_started':
-                  setConversationId(event_data["conversation_id"]);
-                  break;
-                case 'node_started':
-                  break;
-                case 'node_finished':
-                  break;
-                case 'workflow_finished':
-                  setWaiting(false);
-                  break;
-                case 'message_end':
-                  break;
-              }
-            } catch (e) {
-              console.log('[SSE ERROR]', 'line', line, e);
-            }
-          }
+        if (!response.ok) {
+          const errorText = await response.text();
+          updateLastChatItemMessage(`エラーが発生しました: ${errorText}`);
+          setWaiting(false);
+          return;
         }
-      }
 
+        const responseData = await response.json();
+
+        // 外部APIのレスポンスから結果を取得
+        const result = responseData?.data?.outputs?.result || '結果が取得できませんでした。';
+
+        updateLastChatItemMessage(result);
+
+        setWaiting(false);
+
+      } catch (error) {
+        console.error('Error:', error);
+        updateLastChatItemMessage('エラーが発生しました。');
+        setWaiting(false);
+      }
     }
   };
 
@@ -246,8 +221,7 @@ export default function ChatPage() {
                     {chatItemList && chatItemList.map((chatItem, chatItemIndex) => (
                       <>
                         {chatItem.type == "user" ? (
-                          <>
-                            <li className="mt-4">
+                            <li key={chatItemIndex} className="mt-4">
                               <div className="flex items-start gap-2.5" dir="rtl">
                                 <img className="w-8 h-8 rounded-full" src={process.env.NEXT_PUBLIC_USER_ICON_URL} alt="user" />
                                 <div
@@ -266,11 +240,9 @@ export default function ChatPage() {
                                 </div>
                               </div>
                             </li>
-
-                          </>
                         ) : (
                           <>
-                            <li className="mt-4 chat_item">
+                            <li key={chatItemIndex} className="mt-4 chat_item">
                               <div className="flex items-start gap-2.5">
                                 <img className="w-8 h-8 rounded-full" src={process.env.NEXT_PUBLIC_ROBOT_ICON_URL} alt={process.env.NEXT_PUBLIC_ROBOT_NAME} />
                                 <div
@@ -302,7 +274,7 @@ export default function ChatPage() {
 
 
 
-                                  <p className="assistant_chat_message text-sm font-normal py-2.5 text-gray-900">
+                                  <div className="assistant_chat_message text-sm font-normal py-2.5 text-gray-900">
                                     <ReactMarkdown
                                       rehypePlugins={[]}
                                       remarkPlugins={[
@@ -323,7 +295,7 @@ export default function ChatPage() {
                                     >
                                       {chatItem.message}
                                     </ReactMarkdown>
-                                  </p>
+                                  </div>
 
                                   {chatItem.suggested_questions && chatItem.suggested_questions.length > 0 &&
                                     <>

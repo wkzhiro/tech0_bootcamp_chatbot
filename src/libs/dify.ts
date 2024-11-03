@@ -4,7 +4,7 @@ const DIFY_APP_API_KEY = process.env.DIFY_APP_API_KEY;
 const DIFY_APP_API_BASE_URL = process.env.DIFY_APP_API_BASE_URL;
 
 export const getApplicationInformation = async () => {
-    const response = await fetch(`${DIFY_APP_API_BASE_URL}/v1/parameters?user=abc-123`, {
+    const response = await fetch(`${DIFY_APP_API_BASE_URL}/parameters?user=abc-123`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${DIFY_APP_API_KEY}`
@@ -17,7 +17,7 @@ export const getApplicationInformation = async () => {
 }
 
 export const getApplicationMetaInformation = async () => {
-    const response = await fetch(`${DIFY_APP_API_BASE_URL}/v1/meta?user=abc-123`, {
+    const response = await fetch(`${DIFY_APP_API_BASE_URL}/meta?user=abc-123`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${DIFY_APP_API_KEY}`
