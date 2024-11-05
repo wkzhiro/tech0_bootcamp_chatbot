@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Navbar from "@/components/navbar";
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid';
 import useAutosizeTextArea from '@/libs/useAutosizeTextArea';
@@ -20,6 +21,9 @@ export default function ChatPage() {
 
   const chatListRef = useRef(null);
   const chatRef = useRef(null);
+
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // タイムアウトを設定（10秒）
 
   let mobileChatFocusTimer = null;
 
@@ -99,7 +103,8 @@ export default function ChatPage() {
           return;
         }
 
-        const opening_statement = application_information["opening_statement"] || '';
+        const opening_comment_env = process.env.NEXT_PUBLIC_OPENING_COMMENT || 'お問合せありがとうございます。Tech0 Bootcampについて何かお手伝いできますか？';
+        const opening_statement = opening_comment_env.replace(/\\n/g, '\n');
         const suggested_questions = application_information["suggested_questions"] || [];
 
         if (opening_statement != '') {
@@ -161,6 +166,12 @@ export default function ChatPage() {
 
       setWaiting(true);
 
+      responseTimeoutRef.current = setTimeout(() => {
+        updateLastChatItemMessage('応答がありませんでした。ページを更新して再度入力してください。');
+        setWaiting(false);
+        responseTimeoutRef.current = null;
+      }, 30000); // 10000ms = 10秒
+
       try {
         const response = await fetch('/api/dify/chat-messages', {
           method: 'POST',
@@ -176,6 +187,11 @@ export default function ChatPage() {
           const errorText = await response.text();
           updateLastChatItemMessage(`エラーが発生しました: ${errorText}`);
           setWaiting(false);
+          // Clear the timeout since we've handled the error
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current);
+            responseTimeoutRef.current = null;
+          }
           return;
         }
 
@@ -183,6 +199,12 @@ export default function ChatPage() {
 
         // 外部APIのレスポンスから結果を取得
         const result = responseData?.data?.outputs?.result || '結果が取得できませんでした。';
+
+        // Clear the timeout since response was received
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
 
         updateLastChatItemMessage(result);
 
@@ -192,8 +214,13 @@ export default function ChatPage() {
         console.error('Error:', error);
         updateLastChatItemMessage('エラーが発生しました。');
         setWaiting(false);
-      }
+        // Clear the timeout since we've handled the error
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
     }
+  };
   };
 
 
@@ -276,10 +303,8 @@ export default function ChatPage() {
 
                                   <div className="assistant_chat_message text-sm font-normal py-2.5 text-gray-900">
                                     <ReactMarkdown
-                                      rehypePlugins={[]}
-                                      remarkPlugins={[
-                                        remarkGfm
-                                      ]}
+                                      rehypePlugins={[remarkBreaks]}
+                                      remarkPlugins={[remarkGfm]}
                                       components={{
                                         a({ node, children, ...props }) {
                                           try {
